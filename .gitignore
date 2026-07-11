@@ -11,3 +11,4 @@ secrets.tar.gz.enc
 sync.config
 *.log
 .DS_Store
+spike/pairing/.build/

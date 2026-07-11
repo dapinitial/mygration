@@ -1,0 +1,6 @@
+# Copy to mygration.conf and edit. Every value has a sane default.
+MYG_USER="$(whoami)"          # account name on BOTH machines
+SITES_DIR="$HOME/Sites"       # where your projects live
+SOURCE_HOST="old-mac"         # source Mac: tailscale name, hostname.local, or IP
+SOURCE_HOME="/Users/you"      # $HOME on the source (agent-state re-keying)
+# NTFY_URL="https://ntfy.sh/your-secret-topic"   # optional morning reports

@@ -1,0 +1,13 @@
+# everything Mygration GENERATES about your machine stays local — commit it
+# only to your own PRIVATE state repo, never to a fork of this one
+mygration.conf
+manifest/
+dotfiles/
+launchagents/
+data-dumps/
+agent-state/
+Brewfile*
+secrets.tar.gz.enc
+sync.config
+*.log
+.DS_Store

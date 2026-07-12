@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "mygration",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],
     products: [
         .library(name: "MygrationCore", targets: ["MygrationCore"]),
         .executable(name: "mygration", targets: ["mygration"]),

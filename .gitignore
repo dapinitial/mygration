@@ -13,3 +13,6 @@ sync.config
 .DS_Store
 spike/pairing/.build/
 .build/
+app/Mygration.xcodeproj/
+app/build/
+*.xcuserstate

@@ -1,0 +1,35 @@
+name: Mygration
+options:
+  bundleIdPrefix: com.mygration
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  MygrationCore:
+    path: ..            # the SwiftPM package at repo root (MygrationCore + CLI)
+
+targets:
+  Mygration:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: MygrationCore
+        product: MygrationCore
+    settings:
+      base:
+        PRODUCT_NAME: Mygration
+        PRODUCT_BUNDLE_IDENTIFIER: com.mygration.app
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
+        CODE_SIGN_ENTITLEMENTS: Mygration.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_VERSION: "5.10"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE

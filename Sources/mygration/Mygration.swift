@@ -30,14 +30,19 @@ struct Capture: ParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Read this machine into a Ledger (JSON). Never modifies anything.")
 
-    @Option(name: .long, help: "Projects directory to scan.")
-    var sites: String = NSHomeDirectory() + "/Sites"
+    @Option(name: .customLong("code-root"), parsing: .upToNextOption,
+            help: "Code directories to scan (repeatable). Default: auto-discover common roots.")
+    var codeRoots: [String] = []
 
     @Option(name: .long, help: "Write the ledger to a file instead of stdout.")
     var output: String?
 
     func run() throws {
-        let ledger = Collect.ledger(sitesDir: (sites as NSString).expandingTildeInPath)
+        let roots = codeRoots.isEmpty
+            ? Collect.discoverCodeRoots()
+            : codeRoots.map { ($0 as NSString).expandingTildeInPath }
+        FileHandle.standardError.write(Data("scanning code roots: \(roots)\n".utf8))
+        let ledger = Collect.ledger(codeRoots: roots)
         let json = try ledger.json()
         if let output {
             try json.write(toFile: (output as NSString).expandingTildeInPath,

@@ -6,16 +6,72 @@ import Foundation
 /// otherwise.
 public enum Collect {
 
-    public static func ledger(sitesDir: String) -> Ledger {
+    public static func ledger(codeRoots: [String]) -> Ledger {
         Ledger(
             machine: machine(),
             brew: brew(),
-            repos: repos(sitesDir: sitesDir),
-            envFiles: envFiles(sitesDir: sitesDir),
-            keychainRefs: keychainRefs(sitesDir: sitesDir),
+            repos: repos(inRoots: codeRoots),
+            envFiles: codeRoots.flatMap { envFiles(sitesDir: $0) }.sorted { $0.path < $1.path },
+            keychainRefs: codeRoots.flatMap { keychainRefs(sitesDir: $0) }.sorted { $0.service < $1.service },
             node: node(),
             vscodeExtensions: vscodeExtensions(),
+            agents: agents(),
             capturedAt: ISO8601DateFormatter().string(from: Date()))
+    }
+
+    /// Where people keep code — no one convention. Auto-discovers the common
+    /// roots that exist and actually contain git repos; users can add their own.
+    public static let commonCodeRoots = [
+        "Sites", "Source", "Sources", "SourceCode", "Code", "Repos", "repos",
+        "Projects", "projects", "Developer", "dev", "Dev", "git", "workspace", "src",
+    ]
+
+    public static func discoverCodeRoots(extra: [String] = []) -> [String] {
+        let home = NSHomeDirectory()
+        let candidates = commonCodeRoots.map { "\(home)/\($0)" } + extra.map { expand($0) }
+        return candidates.filter { root in
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: root, isDirectory: &isDir), isDir.boolValue,
+                  let kids = try? FileManager.default.contentsOfDirectory(atPath: root) else { return false }
+            return kids.contains { FileManager.default.fileExists(atPath: "\(root)/\($0)/.git") }
+        }
+    }
+
+    static func expand(_ p: String) -> String { (p as NSString).expandingTildeInPath }
+
+    // MARK: AI agent state (the catalog scan)
+
+    public static func agents() -> [DiscoveredAgent] {
+        let home = NSHomeDirectory()
+        let fm = FileManager.default
+        return AgentCatalog.all.compactMap { tool in
+            let present = tool.paths.filter { fm.fileExists(atPath: "\(home)/\($0)") }
+            guard !present.isEmpty else { return nil }
+            // size excludes regenerate paths (e.g. multi-GB model weights)
+            let sized = present.filter { p in !tool.regenerate.contains { p == $0 || p.hasPrefix($0) } }
+            let bytes = sized.reduce(0) { $0 + dirSize("\(home)/\($1)") }
+            let allRegen = present.allSatisfy { p in tool.regenerate.contains { p == $0 || p.hasPrefix($0) } }
+            let hasSecrets = tool.secretPaths.contains { fm.fileExists(atPath: "\(home)/\($0)") }
+            return DiscoveredAgent(
+                id: tool.id, name: tool.name, foundPaths: present,
+                bytes: bytes, hasSecrets: hasSecrets,
+                regenerateOnly: allRegen, reauth: tool.reauth, pathKeyed: tool.pathKeyed)
+        }
+    }
+
+    /// Fast recursive size, capped so a giant tree can't stall discovery.
+    static func dirSize(_ path: String, cap: Int = 500_000) -> Int {
+        var total = 0, count = 0
+        guard let en = FileManager.default.enumerator(atPath: path) else {
+            return (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int) ?? 0 ?? 0
+        }
+        while let f = en.nextObject() as? String {
+            count += 1; if count > cap { break }
+            if let sz = try? FileManager.default.attributesOfItem(atPath: "\(path)/\(f)")[.size] as? Int {
+                total += sz ?? 0
+            }
+        }
+        return total
     }
 
     // MARK: machine identity
@@ -49,6 +105,10 @@ public enum Collect {
     }
 
     // MARK: git repos (the code lane)
+
+    public static func repos(inRoots roots: [String]) -> [Repo] {
+        roots.flatMap { repos(sitesDir: $0) }.sorted { $0.path < $1.path }
+    }
 
     public static func repos(sitesDir: String) -> [Repo] {
         let fm = FileManager.default

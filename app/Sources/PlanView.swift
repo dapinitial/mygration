@@ -8,6 +8,7 @@ struct PlanView: View {
     let ledger: Ledger
     @State private var selected: Set<String> = []
     @State private var items: [PlanItem] = []
+    @State private var running = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -99,7 +100,7 @@ struct PlanView: View {
             }
             Spacer()
             Button {
-                // hook: hand `picks` to the transfer engine
+                running = true
             } label: {
                 Label("Migrate selected", systemImage: "arrow.right.circle.fill")
                     .font(.system(size: 13, weight: .semibold))
@@ -110,6 +111,10 @@ struct PlanView: View {
         .padding(16)
         .background(.thinMaterial)
         .overlay(Divider().opacity(0.4), alignment: .top)
+        .sheet(isPresented: $running) {
+            MigrationRunView(source: ledger, selected: selected,
+                             targetRoot: Collect.discoverCodeRoots().first ?? (NSHomeDirectory() + "/Sites"))
+        }
     }
 
     // MARK: build items from the real ledger

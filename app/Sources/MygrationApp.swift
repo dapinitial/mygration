@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import MygrationCore
 
 @main
@@ -27,8 +28,16 @@ final class AppModel: ObservableObject {
     let browser = PeerBrowser()
     let session = PairingSession()
     @Published var mode: Mode = .choosing
+    private var bag = Set<AnyCancellable>()
 
     enum Mode { case choosing, hosting, joining }
+
+    init() {
+        // nested ObservableObjects don't auto-propagate — forward their changes
+        // so views observing AppModel redraw when peers/phase update.
+        browser.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &bag)
+        session.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &bag)
+    }
 
     func beHost() { mode = .hosting; session.host() }
     func beReceiver() { mode = .joining; browser.start() }

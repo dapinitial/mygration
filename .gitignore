@@ -12,3 +12,4 @@ sync.config
 *.log
 .DS_Store
 spike/pairing/.build/
+.build/

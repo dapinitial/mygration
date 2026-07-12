@@ -75,11 +75,11 @@ Seven catalogs, each a living constellation in the native 3D **`Visualize this M
 
 ## Screenshots
 
-> _Drop images in `docs/img/`. Capture from the app with ⌘⇧4._
+> _Stylized placeholders below — swap in real captures (⌘⇧4) as `docs/img/*.png` and update the links._
 
 | The ceremony | The plan | The constellation |
 |---|---|---|
-| ![pairing](docs/img/pairing.png) | ![plan](docs/img/plan.png) | ![graph](docs/img/graph.png) |
+| ![pairing](docs/img/pairing.svg) | ![plan](docs/img/plan.svg) | ![graph](docs/img/graph.svg) |
 
 ## Architecture
 

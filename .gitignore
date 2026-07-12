@@ -16,3 +16,6 @@ spike/pairing/.build/
 app/Mygration.xcodeproj/
 app/build/
 *.xcuserstate
+.swiftpm/
+*.xcuserdatad/
+xcuserdata/

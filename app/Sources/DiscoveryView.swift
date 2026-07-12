@@ -94,7 +94,7 @@ struct HostView: View {
                     .monospacedDigit().tracking(8)
                     .contentTransition(.numericText())
             } else {
-                ProgressView()
+                Spinner()
             }
             Button("Cancel") { model.reset() }.buttonStyle(.bordered)
         }
@@ -111,8 +111,14 @@ struct ReceiverView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Looking for nearby Macs…")
-                .font(.title3).foregroundStyle(.secondary).padding(.top, 24)
+            HStack(spacing: 10) {
+                if model.browser.peers.isEmpty { Spinner(size: 18) }
+                Text(model.browser.peers.isEmpty
+                     ? "Looking for nearby Macs…"
+                     : "Tap a Mac to pair")
+                    .font(.title3).foregroundStyle(.secondary)
+            }
+            .padding(.top, 24)
 
             BubbleField(peers: model.browser.peers) { peer in
                 pinTarget = peer; pin = ""
@@ -140,7 +146,7 @@ struct BubbleField: View {
             GeometryReader { geo in
                 ZStack {
                     if peers.isEmpty {
-                        ProgressView().controlSize(.large)
+                        RadiatingWaves()   // gentle "scanning" pulse, pure SwiftUI
                             .position(x: geo.size.width/2, y: geo.size.height/2)
                     }
                     ForEach(Array(peers.enumerated()), id: \.element.id) { i, peer in

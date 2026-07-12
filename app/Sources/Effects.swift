@@ -50,7 +50,7 @@ struct PairingOverlay: View {
         Group {
             switch model.session.phase {
             case .connecting:
-                Glass { ProgressView("Opening secure channel…").padding() }
+                Glass { HStack(spacing: 12) { Spinner(size: 22); Text("Opening secure channel…") }.padding() }
             case .established:
                 Glass { Label("Verified — exchanging setup…", systemImage: "lock.shield")
                     .font(.title3).padding() }
@@ -98,6 +98,22 @@ struct PairedCard: View {
     func archNote(mine: String, theirs: String) -> String {
         mine == theirs ? "Same architecture — a straight rebuild."
         : "\(theirs) → \(mine): apps reinstall natively, nothing x86 carried over."
+    }
+}
+
+/// Pure-SwiftUI spinner — safe inside TimelineView (unlike ProgressView, which
+/// bridges to NSProgressIndicator and faults when re-flattened every frame).
+struct Spinner: View {
+    var size: CGFloat = 28
+    @State private var spin = false
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.72)
+            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            .frame(width: size, height: size)
+            .rotationEffect(.degrees(spin ? 360 : 0))
+            .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spin)
+            .onAppear { spin = true }
     }
 }
 

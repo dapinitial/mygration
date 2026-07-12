@@ -153,10 +153,17 @@ public final class PairingSession: ObservableObject {
                 guard let self else { return }
                 switch state {
                 case .ready:
+                    NSLog("[Mygration] connection READY (\(role)) — secure channel up")
                     self.phase = .established
                     conn.send(content: frame(PeerInfo.mine()), completion: .contentProcessed { _ in })
                     self.receivePeer(conn)
-                case .failed(let e): self.phase = .failed("\(e)")
+                case .failed(let e):
+                    NSLog("[Mygration] connection FAILED (\(role)): \(e)")
+                    self.phase = .failed("\(e)")
+                case .waiting(let e):
+                    NSLog("[Mygration] connection WAITING (\(role)): \(e)")
+                case .cancelled:
+                    NSLog("[Mygration] connection cancelled (\(role))")
                 default: break
                 }
             }
@@ -170,7 +177,8 @@ public final class PairingSession: ObservableObject {
             let n = Int(UInt32(bigEndian: d.withUnsafeBytes { $0.load(as: UInt32.self) }))
             conn.receive(minimumIncompleteLength: n, maximumLength: n) { body, _, _, _ in
                 guard let body, let peer = try? JSONDecoder().decode(PeerInfo.self, from: body)
-                else { return }
+                else { NSLog("[Mygration] failed to decode peer hello"); return }
+                NSLog("[Mygration] PAIRED with \(peer.name) (\(peer.arch))")
                 Task { @MainActor [weak self] in self?.phase = .paired(peer) }
             }
         }

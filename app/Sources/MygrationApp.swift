@@ -30,25 +30,37 @@ struct MygrationApp: App {
 
         // The à-la-carte migration plan
         Window("Migration Plan", id: "plan") {
-            PlanWindow()
+            PlanWindow().environmentObject(model)
                 .frame(minWidth: 620, minHeight: 560)
         }
     }
 }
 
-/// Captures this Mac's ledger, then shows the selectable plan.
+/// Shows the selectable plan. Prefers the PEER's ledger (what would migrate FROM
+/// the other Mac) once paired; otherwise previews THIS Mac's ledger.
 struct PlanWindow: View {
-    @State private var ledger: Ledger?
+    @EnvironmentObject var model: AppModel
+    @State private var localLedger: Ledger?
+    private var loading: String {
+        model.session.peerLedger == nil && localLedger == nil ? "Reading this Mac…" : ""
+    }
     var body: some View {
         Group {
-            if let ledger { PlanView(ledger: ledger) }
-            else { VStack(spacing: 14) { Spinner(size: 30); Text("Reading this Mac…").foregroundStyle(.secondary) }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .windowBackgroundColor)) }
+            if let peer = model.session.peerLedger {
+                PlanView(ledger: peer)   // real: the source Mac's contents
+            } else if let localLedger {
+                PlanView(ledger: localLedger)   // preview of this Mac when unpaired
+            } else {
+                VStack(spacing: 14) { Spinner(size: 30); Text("Reading this Mac…").foregroundStyle(.secondary) }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(nsColor: .windowBackgroundColor))
+            }
         }
         .task {
-            let roots = Collect.discoverCodeRoots()
-            ledger = await Task.detached { Collect.ledger(codeRoots: roots) }.value
+            if model.session.peerLedger == nil {
+                let roots = Collect.discoverCodeRoots()
+                localLedger = await Task.detached { Collect.ledger(codeRoots: roots) }.value
+            }
         }
     }
 }

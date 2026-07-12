@@ -91,15 +91,26 @@ public final class PeerBrowser: ObservableObject {
 
 // MARK: - pairing session (host or join)
 
+/// One framed message on the pairing wire: a hello, then the sender's full ledger.
+struct Wire: Codable {
+    let kind: String            // "hello" | "ledger"
+    var hello: PeerInfo? = nil
+    var ledger: Ledger? = nil
+}
+
 @MainActor
 public final class PairingSession: ObservableObject {
     public enum Phase: Equatable {
         case idle, advertising(pin: String), connecting, established, paired(PeerInfo), failed(String)
     }
     @Published public private(set) var phase: Phase = .idle
+    /// The OTHER machine's ledger — what could migrate FROM it TO here.
+    @Published public private(set) var peerLedger: Ledger?
 
     private var listener: NWListener?
     private var connection: NWConnection?
+    /// Roots to scan when sending our ledger (set by the app before hosting/joining).
+    public var codeRoots: [String] = []
 
     public init() {}
 
@@ -155,8 +166,17 @@ public final class PairingSession: ObservableObject {
                 case .ready:
                     NSLog("[Mygration] connection READY (\(role)) — secure channel up")
                     self.phase = .established
-                    conn.send(content: frame(PeerInfo.mine()), completion: .contentProcessed { _ in })
-                    self.receivePeer(conn)
+                    // 1) hello immediately, 2) our full ledger (captured off-thread)
+                    conn.send(content: frame(Wire(kind: "hello", hello: .mine())),
+                              completion: .contentProcessed { _ in })
+                    let roots = self.codeRoots.isEmpty ? Collect.discoverCodeRoots() : self.codeRoots
+                    Task.detached {
+                        let led = Collect.ledger(codeRoots: roots)
+                        conn.send(content: frame(Wire(kind: "ledger", ledger: led)),
+                                  completion: .contentProcessed { _ in })
+                        NSLog("[Mygration] sent our ledger (\(led.repos.count) repos, \(led.agents.count) agents)")
+                    }
+                    self.receiveLoop(conn)
                 case .failed(let e):
                     NSLog("[Mygration] connection FAILED (\(role)): \(e)")
                     self.phase = .failed("\(e)")
@@ -171,15 +191,28 @@ public final class PairingSession: ObservableObject {
         conn.start(queue: .main)
     }
 
-    private nonisolated func receivePeer(_ conn: NWConnection) {
-        conn.receive(minimumIncompleteLength: 4, maximumLength: 4) { d, _, _, _ in
-            guard let d, d.count == 4 else { return }
+    /// Continuously read length-prefixed Wire frames (hello, then ledger, …).
+    private nonisolated func receiveLoop(_ conn: NWConnection) {
+        conn.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] d, _, _, _ in
+            guard let self, let d, d.count == 4 else { return }
             let n = Int(UInt32(bigEndian: d.withUnsafeBytes { $0.load(as: UInt32.self) }))
             conn.receive(minimumIncompleteLength: n, maximumLength: n) { body, _, _, _ in
-                guard let body, let peer = try? JSONDecoder().decode(PeerInfo.self, from: body)
-                else { NSLog("[Mygration] failed to decode peer hello"); return }
-                NSLog("[Mygration] PAIRED with \(peer.name) (\(peer.arch))")
-                Task { @MainActor [weak self] in self?.phase = .paired(peer) }
+                if let body, let msg = try? JSONDecoder().decode(Wire.self, from: body) {
+                    switch msg.kind {
+                    case "hello":
+                        if let peer = msg.hello {
+                            NSLog("[Mygration] PAIRED with \(peer.name) (\(peer.arch))")
+                            Task { @MainActor in self.phase = .paired(peer) }
+                        }
+                    case "ledger":
+                        if let led = msg.ledger {
+                            NSLog("[Mygration] received peer ledger: \(led.repos.count) repos, \(led.agents.count) agents, \(led.brew.formulae.count) formulae")
+                            Task { @MainActor in self.peerLedger = led }
+                        }
+                    default: break
+                    }
+                }
+                self.receiveLoop(conn)   // keep reading
             }
         }
     }

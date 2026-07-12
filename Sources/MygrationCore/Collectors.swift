@@ -17,7 +17,40 @@ public enum Collect {
             vscodeExtensions: vscodeExtensions(),
             agents: agents(),
             services: services(),
+            beyondBrew: beyondBrew(),
             capturedAt: ISO8601DateFormatter().string(from: Date()))
+    }
+
+    // MARK: things installed outside Homebrew
+
+    public static func beyondBrew() -> [ExtraTool] {
+        let home = NSHomeDirectory(); let fm = FileManager.default
+        var out: [ExtraTool] = []
+        let formulae = Set(sh("brew list --formula").lines.map { $0.lowercased() })
+        // curl-installed dev tools not covered by brew
+        for t in ExtrasCatalog.tools {
+            let present = t.markers.contains { fm.fileExists(atPath: "\(home)/\($0)") }
+            let viaBrew = t.brewFormula.map { formulae.contains($0.lowercased()) } ?? false
+            if present && !viaBrew {
+                out.append(ExtraTool(id: "tool-\(t.id)", name: t.name, kind: "tool", reinstall: t.reinstall))
+            }
+        }
+        // manual apps: in /Applications but not from an installed cask, not Apple system
+        let casks = sh("brew list --cask").lines.map { $0.replacingOccurrences(of: "-", with: "").lowercased() }
+        for dir in ["/Applications", "\(home)/Applications"] {
+            for app in ((try? fm.contentsOfDirectory(atPath: dir)) ?? []).filter({ $0.hasSuffix(".app") }) {
+                let name = String(app.dropLast(4)); let lc = name.lowercased()
+                if ExtrasCatalog.systemApps.contains(lc) || ExtrasCatalog.ignoredApps.contains(lc) { continue }
+                let key = name.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "").lowercased()
+                if casks.contains(where: { !$0.isEmpty && (key.contains($0) || $0.contains(key)) }) { continue }
+                let hint: String
+                if let cask = ExtrasCatalog.knownCasks[lc] { hint = "brew install --cask \(cask)" }
+                else if ExtrasCatalog.appStoreApps.contains(lc) { hint = "App Store" }
+                else { hint = "reinstall (vendor download)" }
+                out.append(ExtraTool(id: "app-\(name)", name: name, kind: "app", reinstall: hint))
+            }
+        }
+        return out
     }
 
     // MARK: local dev services (web/db stacks)

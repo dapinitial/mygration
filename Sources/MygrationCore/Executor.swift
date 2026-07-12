@@ -121,6 +121,18 @@ public final class Executor: ObservableObject {
                 wrote > 0 ? .ok : .fail)
         }
 
+        // 5) beyond-brew: auto-install the cask-backed ones; surface the rest
+        for x in source.beyondBrew where selected.contains("extras:\(x.id)") {
+            if x.reinstall.hasPrefix("brew install") {
+                let id = add("Installing \(x.name)…", .running)
+                let res = await bg { sh("\(x.reinstall) 2>&1") }
+                set(id, res.ok ? "Installed \(x.name)" : "\(x.name): \(x.reinstall) (finish manually)",
+                    res.ok ? .ok : .info)
+            } else {
+                _ = add("\(x.name): \(x.reinstall)", .info)   // App Store / vendor — manual
+            }
+        }
+
         _ = add("Done.", .ok)
         running = false; done = true
     }

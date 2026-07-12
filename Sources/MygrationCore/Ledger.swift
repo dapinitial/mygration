@@ -12,6 +12,7 @@ public struct Ledger: Codable, Equatable {
     public var vscodeExtensions: [String]
     public var agents: [DiscoveredAgent]
     public var services: [DiscoveredService]
+    public var beyondBrew: [ExtraTool]
     public var capturedAt: String
 }
 

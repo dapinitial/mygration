@@ -149,6 +149,9 @@ struct PlanView: View {
                                              note: "re-enter once on the new Mac", selectable: false) }
         for f in ledger.brew.formulae { item(.brew, "f-"+f.name, f.name, .reinstall) }
         for c in ledger.brew.casks { item(.brew, "c-"+c.name, c.name, .reinstall) }
+        for x in ledger.beyondBrew {
+            item(.extras, x.id, x.name, .manual, note: x.reinstall)
+        }
         items = out
         selected = Set(out.filter { $0.selectable && $0.travel != .manual }.map(\.id))  // sensible default
     }
@@ -187,22 +190,25 @@ struct TravelBadge: View {
 }
 
 enum PlanCat: String, CaseIterable {
-    case repos, agents, services, env, keychain, brew
+    case repos, agents, services, env, keychain, brew, extras
     var label: String {
         switch self {
         case .repos: return "Repositories"; case .agents: return "AI agents"
         case .services: return "Local services"; case .env: return "Env files"
         case .keychain: return "Keychain secrets"; case .brew: return "Homebrew"
+        case .extras: return "Beyond Homebrew"
         }
     }
     var short: String {
         switch self { case .repos: return "repos"; case .agents: return "agents"
-        case .services: return "services"; case .env: return "env"; case .keychain: return "keys"; case .brew: return "brew" }
+        case .services: return "services"; case .env: return "env"; case .keychain: return "keys"
+        case .brew: return "brew"; case .extras: return "extras" }
     }
     var color: Color {
         switch self {
         case .repos: return .cyan; case .agents: return .purple; case .services: return .orange
         case .env: return .mint; case .keychain: return .pink; case .brew: return .orange
+        case .extras: return .yellow
         }
     }
 }

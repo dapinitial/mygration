@@ -27,6 +27,29 @@ struct MygrationApp: App {
                 .frame(minWidth: 900, minHeight: 640)
         }
         .windowStyle(.hiddenTitleBar)
+
+        // The à-la-carte migration plan
+        Window("Migration Plan", id: "plan") {
+            PlanWindow()
+                .frame(minWidth: 620, minHeight: 560)
+        }
+    }
+}
+
+/// Captures this Mac's ledger, then shows the selectable plan.
+struct PlanWindow: View {
+    @State private var ledger: Ledger?
+    var body: some View {
+        Group {
+            if let ledger { PlanView(ledger: ledger) }
+            else { VStack(spacing: 14) { Spinner(size: 30); Text("Reading this Mac…").foregroundStyle(.secondary) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor)) }
+        }
+        .task {
+            let roots = Collect.discoverCodeRoots()
+            ledger = await Task.detached { Collect.ledger(codeRoots: roots) }.value
+        }
     }
 }
 

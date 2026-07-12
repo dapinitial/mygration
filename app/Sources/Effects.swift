@@ -75,6 +75,7 @@ struct PairedCard: View {
     let peer: PeerInfo
     let done: () -> Void
     @State private var burst = false
+    @Environment(\.openWindow) private var openWindow
     var body: some View {
         Glass {
             VStack(spacing: 14) {
@@ -89,7 +90,8 @@ struct PairedCard: View {
                     .foregroundStyle(.secondary)
                 Text(archNote(mine: PeerInfo.mine().arch, theirs: peer.arch))
                     .font(.callout).foregroundStyle(.tint).multilineTextAlignment(.center)
-                Button("Continue to plan") { done() }.buttonStyle(.borderedProminent)
+                Button("Continue to plan") { openWindow(id: "plan"); done() }
+                    .buttonStyle(.borderedProminent)
             }.padding(30)
         }
         .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.5)) { burst = true } }
@@ -140,6 +142,7 @@ struct MenuBarView: View {
             Divider()
             Button("Start a migration…") { openWindow(id: "main") }
             Button("Visualize this Mac 🌌") { openWindow(id: "graph") }
+            Button("Migration plan…") { openWindow(id: "plan") }
             Button("Preview full-screen ripple") { ScreenRippleController.shared.flash() }
             Button("Quit") { NSApplication.shared.terminate(nil) }
         }

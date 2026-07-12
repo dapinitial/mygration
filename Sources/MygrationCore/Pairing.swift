@@ -69,7 +69,9 @@ public final class PeerBrowser: ObservableObject {
     public func start() {
         let params = NWParameters(); params.includePeerToPeer = true
         let b = NWBrowser(for: .bonjour(type: MYG_SERVICE_TYPE, domain: nil), using: params)
+        b.stateUpdateHandler = { state in NSLog("[Mygration] browser state: \(state)") }
         b.browseResultsChangedHandler = { [weak self] results, _ in
+            NSLog("[Mygration] browser results: \(results.count) — \(results.map { "\($0.endpoint)" })")
             Task { @MainActor in
                 self?.peers = results.compactMap { r in
                     if case let .service(name, _, _, _) = r.endpoint {
@@ -81,6 +83,7 @@ public final class PeerBrowser: ObservableObject {
         }
         b.start(queue: .main)
         browser = b
+        NSLog("[Mygration] browsing for \(MYG_SERVICE_TYPE)")
     }
 
     public func stop() { browser?.cancel(); browser = nil; peers = [] }
@@ -106,12 +109,23 @@ public final class PairingSession: ObservableObject {
         do {
             let l = try NWListener(using: tlsPSK(pin: pin))
             l.service = .init(name: PeerInfo.mine().name, type: MYG_SERVICE_TYPE)
+            l.serviceRegistrationUpdateHandler = { change in
+                NSLog("[Mygration] listener service registration: \(change)")
+            }
+            l.stateUpdateHandler = { [weak self] state in
+                NSLog("[Mygration] listener state: \(state)")
+                Task { @MainActor in
+                    if case .failed(let e) = state { self?.phase = .failed("advertise failed: \(e)") }
+                }
+            }
             l.newConnectionHandler = { [weak self] conn in
+                NSLog("[Mygration] incoming connection")
                 Task { @MainActor in self?.attach(conn, role: .host) }
             }
             l.start(queue: .main)
             listener = l
             phase = .advertising(pin: pin)
+            NSLog("[Mygration] hosting, PIN \(pin), advertising \(MYG_SERVICE_TYPE) as \(PeerInfo.mine().name)")
         } catch { phase = .failed("\(error)") }
     }
 

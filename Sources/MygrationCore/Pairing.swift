@@ -93,12 +93,41 @@ public final class PeerBrowser: ObservableObject {
 
 /// One framed message on the pairing wire.
 struct Wire: Codable {
-    let kind: String            // "hello" | "ledger" | "fileRequest" | "fileData"
+    let kind: String            // "hello" | "ledger" | "fileRequest" | "treeRequest" | "fileData"
     var hello: PeerInfo? = nil
     var ledger: Ledger? = nil
-    var paths: [String]? = nil  // fileRequest: HOME-relative paths the peer wants
+    var paths: [String]? = nil  // file/treeRequest: HOME-relative paths the peer wants
     var path: String? = nil     // fileData: one path
     var dataB64: String? = nil  // fileData: its contents
+}
+
+/// Files under a directory that should never be streamed: session transcripts,
+/// caches, and anything huge. Keeps agent-memory transfer to the curated brain.
+func mygExcluded(_ rel: String) -> Bool {
+    if rel.hasSuffix(".jsonl") { return true }               // session transcripts
+    let junk = ["/cache/", "/sessions/", "/shell-snapshots/", "/paste-cache/",
+                "/file-history/", "/downloads/", "/statsig/", "/todos/", "/.DS_Store"]
+    return junk.contains { rel.contains($0) }
+}
+
+/// HOME-relative files under a root (file or directory), minus excluded junk.
+func mygEnumerate(homeRel root: String, home: String) -> [String] {
+    let full = "\(home)/\(root)"
+    var isDir: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: full, isDirectory: &isDir) else { return [] }
+    if !isDir.boolValue { return mygExcluded(root) ? [] : [root] }
+    var out: [String] = []
+    if let en = FileManager.default.enumerator(atPath: full) {
+        while let f = en.nextObject() as? String {
+            let rel = "\(root)/\(f)"
+            var d: ObjCBool = false
+            FileManager.default.fileExists(atPath: "\(home)/\(rel)", isDirectory: &d)
+            if d.boolValue || mygExcluded(rel) { continue }
+            out.append(rel)
+            if out.count > 8000 { break }
+        }
+    }
+    return out
 }
 
 @MainActor
@@ -123,6 +152,13 @@ public final class PairingSession: ObservableObject {
     public func requestFiles(_ paths: [String]) {
         guard let conn = connection, !paths.isEmpty else { return }
         conn.send(content: frame(Wire(kind: "fileRequest", paths: paths)), completion: .contentProcessed { _ in })
+    }
+
+    /// Ask the peer to stream everything under these HOME-relative directory roots
+    /// (agent memory), minus excluded caches/transcripts.
+    public func requestTree(_ roots: [String]) {
+        guard let conn = connection, !roots.isEmpty else { return }
+        conn.send(content: frame(Wire(kind: "treeRequest", paths: roots)), completion: .contentProcessed { _ in })
     }
 
     public init() {}
@@ -185,7 +221,8 @@ public final class PairingSession: ObservableObject {
                     let roots = self.codeRoots.isEmpty ? Collect.discoverCodeRoots() : self.codeRoots
                     Task.detached { [weak self] in
                         let led = Collect.ledger(codeRoots: roots)
-                        await MainActor.run { self?.servablePaths = Set(led.envFiles.map(\.path)) }
+                        let serve = Set(led.envFiles.map(\.path)).union(led.agents.flatMap(\.transferPaths))
+                        await MainActor.run { self?.servablePaths = serve }
                         conn.send(content: frame(Wire(kind: "ledger", ledger: led)),
                                   completion: .contentProcessed { _ in })
                         NSLog("[Mygration] sent our ledger (\(led.repos.count) repos, \(led.agents.count) agents)")
@@ -235,6 +272,22 @@ public final class PairingSession: ObservableObject {
                                 }
                             }
                             NSLog("[Mygration] served \((msg.paths ?? []).filter { self.servablePaths.contains($0) }.count) files")
+                        }
+                    case "treeRequest":
+                        let home = NSHomeDirectory()
+                        Task { @MainActor in
+                            var sent = 0
+                            for root in (msg.paths ?? []) where self.servablePaths.contains(root) {
+                                for rel in mygEnumerate(homeRel: root, home: home) {
+                                    guard let data = FileManager.default.contents(atPath: "\(home)/\(rel)"),
+                                          data.count < 8_000_000 else { continue }
+                                    conn.send(content: frame(Wire(kind: "fileData", path: rel,
+                                                                  dataB64: data.base64EncodedString())),
+                                              completion: .contentProcessed { _ in })
+                                    sent += 1
+                                }
+                            }
+                            NSLog("[Mygration] served tree: \(sent) files")
                         }
                     case "fileData":
                         if let p = msg.path, let b64 = msg.dataB64, let data = Data(base64Encoded: b64) {

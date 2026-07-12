@@ -22,6 +22,8 @@ public struct Machine: Codable, Equatable {
     public var macOS: String
     /// "/opt/homebrew" (Apple Silicon) or "/usr/local" (Intel)
     public var brewPrefix: String?
+    /// absolute $HOME — lets the target re-key path-encoded agent memory
+    public var home: String = ""
 }
 
 public struct BrewState: Codable, Equatable {

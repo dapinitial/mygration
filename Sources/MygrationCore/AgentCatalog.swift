@@ -12,11 +12,18 @@ public struct AgentTool: Codable, Equatable, Identifiable {
     public var regenerate: [String]    // re-pull/rebuild on the new Mac, never transfer (models, caches)
     public var reauth: String?         // one-liner to re-authenticate on the target
     public var pathKeyed: Bool         // state keyed by absolute path → needs re-keying on restore
+    /// Curated subset actually safe to copy (memory/skills/config) — excludes
+    /// caches, session transcripts, and secrets. Defaults to `paths` minus the
+    /// secret/regenerate paths.
+    public var transferPaths: [String]
 
     public init(id: String, name: String, paths: [String], secretPaths: [String] = [],
-                regenerate: [String] = [], reauth: String? = nil, pathKeyed: Bool = false) {
+                regenerate: [String] = [], reauth: String? = nil, pathKeyed: Bool = false,
+                transferPaths: [String]? = nil) {
         self.id = id; self.name = name; self.paths = paths; self.secretPaths = secretPaths
         self.regenerate = regenerate; self.reauth = reauth; self.pathKeyed = pathKeyed
+        self.transferPaths = transferPaths ?? paths.filter { p in
+            !secretPaths.contains(p) && !regenerate.contains(p) }
     }
 }
 
@@ -25,7 +32,11 @@ public enum AgentCatalog {
         AgentTool(id: "claude-code", name: "Claude Code",
                   paths: [".claude", ".claude.json"],
                   secretPaths: [".claude.json"],            // MCP servers embed tokens
-                  reauth: "claude  (OAuth → Keychain)", pathKeyed: true),
+                  reauth: "claude  (OAuth → Keychain)", pathKeyed: true,
+                  // curated: the brain, not the caches/transcripts (which can hold secrets)
+                  transferPaths: [".claude/memory", ".claude/skills", ".claude/agents",
+                                  ".claude/plugins", ".claude/CLAUDE.md", ".claude/settings.json",
+                                  ".claude/projects"]),
         AgentTool(id: "codex", name: "OpenAI Codex CLI",
                   paths: [".codex"], secretPaths: [".codex/auth.json"],
                   reauth: "codex login"),
@@ -77,4 +88,5 @@ public struct DiscoveredAgent: Codable, Equatable, Identifiable {
     public var regenerateOnly: Bool   // everything present is re-pull-not-copy (e.g. Ollama models)
     public var reauth: String?
     public var pathKeyed: Bool
+    public var transferPaths: [String]   // curated roots that exist here, safe to copy
 }

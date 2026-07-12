@@ -80,10 +80,12 @@ public enum Collect {
             let bytes = sized.reduce(0) { $0 + dirSize("\(home)/\($1)") }
             let allRegen = present.allSatisfy { p in tool.regenerate.contains { p == $0 || p.hasPrefix($0) } }
             let hasSecrets = tool.secretPaths.contains { fm.fileExists(atPath: "\(home)/\($0)") }
+            let transferable = tool.transferPaths.filter { fm.fileExists(atPath: "\(home)/\($0)") }
             return DiscoveredAgent(
                 id: tool.id, name: tool.name, foundPaths: present,
                 bytes: bytes, hasSecrets: hasSecrets,
-                regenerateOnly: allRegen, reauth: tool.reauth, pathKeyed: tool.pathKeyed)
+                regenerateOnly: allRegen, reauth: tool.reauth, pathKeyed: tool.pathKeyed,
+                transferPaths: transferable)
         }
     }
 
@@ -114,7 +116,8 @@ public enum Collect {
             host: sh("scutil --get LocalHostName").lines.first ?? ProcessInfo.processInfo.hostName,
             arch: arch,
             macOS: sh("sw_vers -productVersion").lines.first ?? "unknown",
-            brewPrefix: prefix)
+            brewPrefix: prefix,
+            home: NSHomeDirectory())
     }
 
     // MARK: homebrew

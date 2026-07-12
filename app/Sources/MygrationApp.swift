@@ -20,6 +20,36 @@ struct MygrationApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+
+        // The 3D ledger constellation
+        Window("Ledger", id: "graph") {
+            LedgerWindow().environmentObject(model)
+                .frame(minWidth: 900, minHeight: 640)
+        }
+        .windowStyle(.hiddenTitleBar)
+    }
+}
+
+/// Captures this Mac's ledger (off the main thread) then renders the graph.
+struct LedgerWindow: View {
+    @State private var ledger: Ledger?
+    var body: some View {
+        ZStack {
+            Color(red: 0.03, green: 0.043, blue: 0.078).ignoresSafeArea()
+            if let ledger {
+                LedgerGraphView(ledger: ledger)
+            } else {
+                VStack(spacing: 14) {
+                    Spinner(size: 34)
+                    Text("Reading this Mac…").foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task {
+            let roots = Collect.discoverCodeRoots()
+            let l = await Task.detached { Collect.ledger(codeRoots: roots) }.value
+            withAnimation(.easeOut(duration: 0.4)) { ledger = l }
+        }
     }
 }
 

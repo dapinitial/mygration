@@ -139,6 +139,7 @@ struct MenuBarView: View {
             Text("Two Macs, one setup.").font(.caption).foregroundStyle(.secondary)
             Divider()
             Button("Start a migration…") { openWindow(id: "main") }
+            Button("Visualize this Mac 🌌") { openWindow(id: "graph") }
             Button("Preview full-screen ripple") { ScreenRippleController.shared.flash() }
             Button("Quit") { NSApplication.shared.terminate(nil) }
         }

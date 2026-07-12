@@ -77,7 +77,7 @@ final class CollectorTests: XCTestCase {
         let json = try Ledger(machine: Collect.machine(), brew: BrewState(taps: [], formulae: [], casks: []),
                               repos: [], envFiles: [], keychainRefs: refs,
                               node: NodeState(nodeVersion: nil, nvmVersions: [], npmGlobals: []),
-                              vscodeExtensions: [], capturedAt: "t").json()
+                              vscodeExtensions: [], agents: [], services: [], beyondBrew: [], capturedAt: "t").json()
         XCTAssertFalse(json.contains("-w"))
     }
 
@@ -86,7 +86,7 @@ final class CollectorTests: XCTestCase {
                        brew: BrewState(taps: [], formulae: [BrewState.Package(name: "git", version: "2.4")], casks: []),
                        repos: [], envFiles: [], keychainRefs: [],
                        node: NodeState(nodeVersion: "v22", nvmVersions: [], npmGlobals: []),
-                       vscodeExtensions: [], capturedAt: "2026-07-12T00:00:00Z")
+                       vscodeExtensions: [], agents: [], services: [], beyondBrew: [], capturedAt: "2026-07-12T00:00:00Z")
         XCTAssertEqual(try l.json(), try l.json())              // deterministic
         XCTAssertTrue(try l.json().contains("\"arch\" : \"arm64\""))
     }

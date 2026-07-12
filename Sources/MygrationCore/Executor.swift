@@ -95,8 +95,6 @@ public final class Executor: ObservableObject {
 
         // 4) AI agent memory → stream curated tree over the encrypted channel, re-keyed
         let agents = source.agents.filter { selected.contains("agents:\($0.id)") }
-        let srcKey = source.machine.home.replacingOccurrences(of: "/", with: "-")
-        let dstKey = NSHomeDirectory().replacingOccurrences(of: "/", with: "-")
         for a in agents {
             if a.regenerateOnly { _ = add("\(a.name) — re-pull models on this Mac (not copied)", .info); continue }
             guard let session, !a.transferPaths.isEmpty else {
@@ -111,7 +109,7 @@ public final class Executor: ObservableObject {
             }
             var wrote = 0
             for (p, data) in session.receivedFiles where a.transferPaths.contains(where: { p.hasPrefix($0) }) {
-                let rekeyed = srcKey.isEmpty ? p : p.replacingOccurrences(of: srcKey, with: dstKey)
+                let rekeyed = mygRekey(p, sourceHome: source.machine.home, targetHome: NSHomeDirectory())
                 let dest = "\(NSHomeDirectory())/\(rekeyed)"
                 try? fm.createDirectory(atPath: (dest as NSString).deletingLastPathComponent,
                                         withIntermediateDirectories: true)

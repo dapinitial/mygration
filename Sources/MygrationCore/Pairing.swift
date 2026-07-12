@@ -110,6 +110,16 @@ func mygExcluded(_ rel: String) -> Bool {
     return junk.contains { rel.contains($0) }
 }
 
+/// Re-key a HOME-relative path that encodes the source machine's home (e.g. a
+/// Claude project dir "-Users-alice-...") to the target's home key. Identity
+/// when the homes match.
+public func mygRekey(_ path: String, sourceHome: String, targetHome: String) -> String {
+    let src = sourceHome.replacingOccurrences(of: "/", with: "-")
+    let dst = targetHome.replacingOccurrences(of: "/", with: "-")
+    guard !src.isEmpty, src != dst else { return path }
+    return path.replacingOccurrences(of: src, with: dst)
+}
+
 /// HOME-relative files under a root (file or directory), minus excluded junk.
 func mygEnumerate(homeRel root: String, home: String) -> [String] {
     let full = "\(home)/\(root)"

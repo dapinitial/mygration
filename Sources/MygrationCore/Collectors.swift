@@ -16,7 +16,35 @@ public enum Collect {
             node: node(),
             vscodeExtensions: vscodeExtensions(),
             agents: agents(),
+            services: services(),
             capturedAt: ISO8601DateFormatter().string(from: Date()))
+    }
+
+    // MARK: local dev services (web/db stacks)
+
+    public static func services() -> [DiscoveredService] {
+        let fm = FileManager.default
+        let brewPrefixes = ["/opt/homebrew", "/usr/local"].filter { fm.fileExists(atPath: $0) }
+        func resolve(_ p: String) -> [String] {
+            if p.contains("$B") { return brewPrefixes.map { p.replacingOccurrences(of: "$B", with: $0) } }
+            return [expand(p)]
+        }
+        return ServiceCatalog.all.compactMap { svc in
+            let cfg = svc.configPaths.flatMap(resolve).filter { fm.fileExists(atPath: $0) }
+            let data = svc.dataPaths.flatMap(resolve).filter { fm.fileExists(atPath: $0) }
+            guard !cfg.isEmpty || !data.isEmpty else { return nil }
+            // /etc/hosts only counts if it has custom (non-default) entries
+            if svc.id == "hosts",
+               let t = try? String(contentsOfFile: "/etc/hosts", encoding: .utf8),
+               !t.split(separator: "\n").contains(where: { l in
+                   let s = l.trimmingCharacters(in: .whitespaces)
+                   return !s.isEmpty && !s.hasPrefix("#") && !s.contains("localhost")
+                       && !s.contains("broadcasthost") && !s.hasPrefix("::1")
+               }) { return nil }
+            return DiscoveredService(id: svc.id, name: svc.name,
+                                     configFound: cfg, dataFound: data,
+                                     dumpHint: svc.dumpHint, brewFormula: svc.brewFormula)
+        }
     }
 
     /// Where people keep code — no one convention. Auto-discovers the common

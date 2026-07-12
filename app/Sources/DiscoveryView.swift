@@ -29,7 +29,9 @@ struct DiscoveryView: View {
                         origin: CGPoint(x: geo.size.width/2, y: geo.size.height/2))
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: model.mode)
-        .onChange(of: isPaired) { _, now in if now { pairedTick += 1 } }
+        .onChange(of: isPaired) { _, now in
+            if now { pairedTick += 1; model.flashScreen() }   // window ripple + full-screen wash
+        }
     }
 }
 

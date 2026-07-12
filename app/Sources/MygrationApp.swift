@@ -41,6 +41,7 @@ final class AppModel: ObservableObject {
 
     func beHost() { mode = .hosting; session.host() }
     func beReceiver() { mode = .joining; browser.start() }
+    func flashScreen() { ScreenRippleController.shared.flash() }
     func reset() {
         session.cancel(); browser.stop(); mode = .choosing
     }

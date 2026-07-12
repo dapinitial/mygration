@@ -47,7 +47,7 @@ struct PlanWindow: View {
     var body: some View {
         Group {
             if let peer = model.session.peerLedger {
-                PlanView(ledger: peer)   // real: the source Mac's contents
+                PlanView(ledger: peer, session: model.session)   // real: source Mac's contents, over the channel
             } else if let localLedger {
                 PlanView(ledger: localLedger)   // preview of this Mac when unpaired
             } else {

@@ -6,6 +6,7 @@ import MygrationCore
 /// it live. This is DECISIONS-as-UI, driven by real discovery.
 struct PlanView: View {
     let ledger: Ledger
+    var session: PairingSession? = nil
     @State private var selected: Set<String> = []
     @State private var items: [PlanItem] = []
     @State private var running = false
@@ -112,7 +113,7 @@ struct PlanView: View {
         .background(.thinMaterial)
         .overlay(Divider().opacity(0.4), alignment: .top)
         .sheet(isPresented: $running) {
-            MigrationRunView(source: ledger, selected: selected,
+            MigrationRunView(source: ledger, selected: selected, session: session,
                              targetRoot: Collect.discoverCodeRoots().first ?? (NSHomeDirectory() + "/Sites"))
         }
     }

@@ -18,6 +18,9 @@ public final class Executor: ObservableObject {
     @Published public private(set) var done = false
     @Published public private(set) var running = false
 
+    /// Set to enable secure file transfer (env files) over the pairing channel.
+    public var session: PairingSession?
+
     public init() {}
 
     public func start(source: Ledger, selected: Set<String>, targetRoot: String) {
@@ -65,9 +68,28 @@ public final class Executor: ObservableObject {
                 res.ok ? .ok : .fail)
         }
 
-        // 3) secret-bearing categories — honest about what's pending
-        let envN = source.envFiles.filter { selected.contains("env:\($0.path)") }.count
-        if envN > 0 { _ = add("\(envN) env files — pending encrypted transfer (next build)", .info) }
+        // 3) env files → streamed over the encrypted pairing channel, written into place
+        let envPaths = source.envFiles.filter { selected.contains("env:\($0.path)") }.map(\.path)
+        if !envPaths.isEmpty, let session {
+            let id = add("Requesting \(envPaths.count) env files over secure channel…", .running)
+            session.requestFiles(envPaths)
+            for _ in 0..<60 {   // wait up to ~6s for arrival
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                if envPaths.allSatisfy({ session.receivedFiles[$0] != nil }) { break }
+            }
+            var wrote = 0
+            for p in envPaths {
+                guard let data = session.receivedFiles[p] else { continue }
+                let dest = "\(NSHomeDirectory())/\(p)"
+                try? fm.createDirectory(atPath: (dest as NSString).deletingLastPathComponent,
+                                        withIntermediateDirectories: true)
+                if (try? data.write(to: URL(fileURLWithPath: dest))) != nil { wrote += 1 }
+            }
+            set(id, "Transferred \(wrote)/\(envPaths.count) env files (encrypted)",
+                wrote == envPaths.count ? .ok : .fail)
+        } else if !envPaths.isEmpty {
+            _ = add("\(envPaths.count) env files — pair the Macs to transfer securely", .info)
+        }
         let keyN = source.keychainRefs.filter { selected.contains("keychain:\($0.service)") }.count
         if keyN > 0 { _ = add("\(keyN) keychain tokens — re-enter on this Mac (never copied)", .info) }
         let agentN = source.agents.filter { selected.contains("agents:\($0.id)") }.count

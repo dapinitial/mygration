@@ -91,11 +91,14 @@ public final class PeerBrowser: ObservableObject {
 
 // MARK: - pairing session (host or join)
 
-/// One framed message on the pairing wire: a hello, then the sender's full ledger.
+/// One framed message on the pairing wire.
 struct Wire: Codable {
-    let kind: String            // "hello" | "ledger"
+    let kind: String            // "hello" | "ledger" | "fileRequest" | "fileData"
     var hello: PeerInfo? = nil
     var ledger: Ledger? = nil
+    var paths: [String]? = nil  // fileRequest: HOME-relative paths the peer wants
+    var path: String? = nil     // fileData: one path
+    var dataB64: String? = nil  // fileData: its contents
 }
 
 @MainActor
@@ -106,11 +109,21 @@ public final class PairingSession: ObservableObject {
     @Published public private(set) var phase: Phase = .idle
     /// The OTHER machine's ledger — what could migrate FROM it TO here.
     @Published public private(set) var peerLedger: Ledger?
+    /// Files received from the peer over the secure channel (HOME-relative path → bytes).
+    @Published public private(set) var receivedFiles: [String: Data] = [:]
 
     private var listener: NWListener?
     private var connection: NWConnection?
     /// Roots to scan when sending our ledger (set by the app before hosting/joining).
     public var codeRoots: [String] = []
+    /// Security boundary: we only serve files we ourselves advertised in our ledger.
+    private var servablePaths: Set<String> = []
+
+    /// Ask the peer to send these HOME-relative files over the encrypted channel.
+    public func requestFiles(_ paths: [String]) {
+        guard let conn = connection, !paths.isEmpty else { return }
+        conn.send(content: frame(Wire(kind: "fileRequest", paths: paths)), completion: .contentProcessed { _ in })
+    }
 
     public init() {}
 
@@ -170,8 +183,9 @@ public final class PairingSession: ObservableObject {
                     conn.send(content: frame(Wire(kind: "hello", hello: .mine())),
                               completion: .contentProcessed { _ in })
                     let roots = self.codeRoots.isEmpty ? Collect.discoverCodeRoots() : self.codeRoots
-                    Task.detached {
+                    Task.detached { [weak self] in
                         let led = Collect.ledger(codeRoots: roots)
+                        await MainActor.run { self?.servablePaths = Set(led.envFiles.map(\.path)) }
                         conn.send(content: frame(Wire(kind: "ledger", ledger: led)),
                                   completion: .contentProcessed { _ in })
                         NSLog("[Mygration] sent our ledger (\(led.repos.count) repos, \(led.agents.count) agents)")
@@ -208,6 +222,23 @@ public final class PairingSession: ObservableObject {
                         if let led = msg.ledger {
                             NSLog("[Mygration] received peer ledger: \(led.repos.count) repos, \(led.agents.count) agents, \(led.brew.formulae.count) formulae")
                             Task { @MainActor in self.peerLedger = led }
+                        }
+                    case "fileRequest":
+                        // serve ONLY files we advertised in our own ledger
+                        let home = NSHomeDirectory()
+                        Task { @MainActor in
+                            for p in (msg.paths ?? []) where self.servablePaths.contains(p) {
+                                if let data = FileManager.default.contents(atPath: "\(home)/\(p)") {
+                                    conn.send(content: frame(Wire(kind: "fileData", path: p,
+                                                                  dataB64: data.base64EncodedString())),
+                                              completion: .contentProcessed { _ in })
+                                }
+                            }
+                            NSLog("[Mygration] served \((msg.paths ?? []).filter { self.servablePaths.contains($0) }.count) files")
+                        }
+                    case "fileData":
+                        if let p = msg.path, let b64 = msg.dataB64, let data = Data(base64Encoded: b64) {
+                            Task { @MainActor in self.receivedFiles[p] = data }
                         }
                     default: break
                     }

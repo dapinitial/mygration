@@ -5,6 +5,7 @@ import MygrationCore
 struct MigrationRunView: View {
     let source: Ledger
     let selected: Set<String>
+    var session: PairingSession? = nil
     let targetRoot: String
     @StateObject private var exec = Executor()
     @Environment(\.dismiss) private var dismiss
@@ -53,7 +54,8 @@ struct MigrationRunView: View {
         }
         .frame(minWidth: 560, minHeight: 460)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear { exec.start(source: source, selected: selected, targetRoot: targetRoot) }
+        .onAppear { exec.session = session
+            exec.start(source: source, selected: selected, targetRoot: targetRoot) }
     }
 
     @ViewBuilder private func icon(_ s: Executor.Line.Status) -> some View {
